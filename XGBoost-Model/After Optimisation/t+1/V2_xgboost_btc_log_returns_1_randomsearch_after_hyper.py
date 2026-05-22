@@ -2,15 +2,11 @@
 #
 # XGBoost model to predict Bitcoin log returns at t+N.
 #
-# VERSION: V2 — After hyperparameter optimisation (random search)
-#
-# CHANGES IN V2 (relative to V1):
+#After hyperparameter optimisation (random search)
 #   1. Processed datasets (train / validation / test) are saved to CSV after
 #      feature engineering and the chronological 70/15/15 split.
 #      File names embed the forecast horizon, e.g.:
 #        train_t1.csv  |  valid_t1.csv  |  test_t1.csv
-#      This makes them directly reusable for SHAP analysis without
-#      re-running feature engineering.
 #
 #   2. Full horizon-awareness: FORECAST_HORIZON controls shift(-N), target
 #      column name, and all output file names, so the pipeline is identical
@@ -49,7 +45,7 @@ import xgboost as xgb
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 
-# ==============================================================================
+
 # SETTINGS
 # ==============================================================================
 
@@ -100,9 +96,13 @@ FIXED_PARAMS = {
 
 
 
-# ================================================ ==============================
-# HELPERS — horizon-aware naming                    (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# HELPERS — horizon-aware naming 
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------             
+
 # Generate a short horizon label for file naming and logging
 # ==============================================================================
 # This helper function creates a compact identifier based on the selected
@@ -130,8 +130,12 @@ def horizon_tag():
 
 
 
-# Create the canonical target column name                  (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+# Create the canonical target column name          
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This helper function generates the name of the prediction target column
 # based on the selected forecast horizon.
 #
@@ -162,9 +166,13 @@ def target_col_name():
 
 
 
-# ===================================
-# STEP 1 — LOAD DATA                    (IMPROVED BY CLAUDE-Sonnet-4.6)
-# =================
+
+# STEP 1 — LOAD DATA                 
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # Load Bitcoin data and create forecasting targets
 # ==============================================================================
 # This function loads the raw Bitcoin dataset and prepares the initial
@@ -228,10 +236,14 @@ def load_data(csv_path):
 
 
 
-# ==============================================================================
+
 # STEP 2 — BUILD FEATURES
-# Build predictive input features for XGBoost                  (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+# Build predictive input features for XGBoost              
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function generates all model input features while preventing
 # data leakage from future observations.
 #
@@ -262,17 +274,17 @@ def build_features(df):
         if col not in [DATE_COLUMN, "asset"]:
             df[col] = pd.Categorical(df[col]).codes
 
-    # --- Lagged log returns ---
+    # Lagged log returns 
     # lag_1 = yesterday's return, lag_2 = two days ago, etc.
     for lag in LAG_FEATURES:
         col_name = "lag_" + str(lag)
         df[col_name] = df["log_return"].shift(lag)
 
-    # --- Rolling volatility ---
+    # Rolling volatility 
     # Standard deviation of the last 5 returns (shifted by 1 to avoid leakage).
     df["rolling_vol_5"] = df["log_return"].shift(1).rolling(window=ROLLING_WINDOW).std()
 
-    # --- Lag all other numeric columns by 1 day ---
+    # Lag all other numeric columns by 1 day 
     already_created = (
         ["log_return", target_col_name(), "rolling_vol_5"]
         + ["lag_" + str(l) for l in LAG_FEATURES]
@@ -295,9 +307,13 @@ def build_features(df):
 
 
 
-# ==============================================================================
-# STEP 3 — IDENTIFY FEATURE COLUMNS                       (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 3 — IDENTIFY FEATURE COLUMNS                    
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # Identify the feature columns used by the model
 # ==============================================================================
 # This function returns a list of dataframe columns that should be used
@@ -352,9 +368,13 @@ def get_feature_cols(df):
 
 
 
-# ==============================================================================
-# STEP 4 — SPLIT INTO TRAIN / VALIDATION / TEST                (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 4 — SPLIT INTO TRAIN / VALIDATION / TEST          
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # Split the dataset into train, validation, and test sets
 # ==============================================================================
 # This function divides the fully engineered dataset into three
@@ -400,9 +420,13 @@ def split_data(df):
 
 
 
-# ==============================================================================
-# STEP 4b — SAVE PROCESSED DATASETS  (NEW IN V2)                 (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 4b — SAVE PROCESSED DATASETS  (NEW IN V2)             
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # Save processed train, validation, and test datasets
 # ==============================================================================
 # This function exports the fully engineered datasets to CSV files
@@ -462,9 +486,13 @@ def save_datasets(train_df, valid_df, test_df):
 
 
 
-# ==============================================================================
-# STEP 5 — METRICS                            (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 5 — METRICS                     
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # Compute MAPE while preventing division instability
 # ==============================================================================
 # Bitcoin log returns are often extremely small and may approach zero,
@@ -494,8 +522,12 @@ def safe_mape(y_true, y_pred, epsilon=1e-8):
 
 
 
-# Measure directional forecasting accuracy            (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+# Measure directional forecasting accuracy          
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function calculates how often the predicted Bitcoin return
 # direction matches the true market direction.
 #
@@ -524,8 +556,12 @@ def directional_accuracy(y_true, y_pred):
 
 
 
-# Compute forecasting evaluation metrics                  (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+# Compute forecasting evaluation metrics        
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function calculates the main statistical metrics used to evaluate
 # XGBoost forecasting performance.
 #
@@ -559,9 +595,13 @@ def calculate_metrics(y_true, y_pred):
 
 
 
-# ==============================================================================
-# STEP 6 — TRAIN A SINGLE XGBOOST MODEL                   (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 6 — TRAIN A SINGLE XGBOOST MODEL             
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # Train a single XGBoost forecasting model
 # ==============================================================================
 # This function fits one XGBoost regression model using the supplied
@@ -616,9 +656,13 @@ def train_xgb(X_train, y_train, params):
 
 
 
-# ==============================================================================
-# STEP 7 — WALK-FORWARD EVALUATION                     (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 7 — WALK-FORWARD EVALUATION             
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # Perform rolling walk-forward forecasting
 # ==============================================================================
 # This function simulates realistic forecasting conditions by stepping
@@ -690,9 +734,13 @@ def walk_forward(train_df, eval_df, params, feature_cols, target_col, stride=1):
 
 
 
-# ==============================================================================
-# STEP 8 — HYPERPARAMETER SEARCH (RANDOM SEARCH ON VALIDATION SET)        (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 8 — HYPERPARAMETER SEARCH (RANDOM SEARCH ON VALIDATION SET)     
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # Perform random search hyperparameter optimisation          
 # ==============================================================================
 # This function searches for the best XGBoost hyperparameter configuration
@@ -816,9 +864,13 @@ def random_search(train_df, valid_df, feature_cols, target_col):
 
 
 
-# ==============================================================================
-# STEP 9 — EVALUATE ON TRAIN AND TEST SETS                    (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 9 — EVALUATE ON TRAIN AND TEST SETS           
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # Evaluate the optimised XGBoost model on train and test datasets
 # ==============================================================================
 # This function evaluates the best hyperparameter configuration using
@@ -851,7 +903,7 @@ def fit_and_evaluate(train_df, valid_df, test_df, best_params, feature_cols, tar
     without re-running the entire pipeline.
     """
 
-    # --- Train evaluation ---
+    # Train evaluation 
     warmup_size  = EARLY_STOP_WINDOW + max(LAG_FEATURES) + ROLLING_WINDOW
     train_warmup = train_df.iloc[:warmup_size].copy()
     train_eval   = train_df.iloc[warmup_size:].copy()
@@ -864,7 +916,7 @@ def fit_and_evaluate(train_df, valid_df, test_df, best_params, feature_cols, tar
     )
     train_metrics = calculate_metrics(train_actuals, train_predictions)
 
-    # --- Test evaluation ---
+    # Test evaluation 
     train_and_valid = pd.concat([train_df, valid_df], ignore_index=True)
 
     test_predictions, test_actuals = walk_forward(
@@ -874,13 +926,6 @@ def fit_and_evaluate(train_df, valid_df, test_df, best_params, feature_cols, tar
         stride=RETRAIN_STRIDE
     )
     test_metrics = calculate_metrics(test_actuals, test_predictions)
-
-    # --- NEW IN V2: save the final model trained on train+valid ---
-    # This model is reusable for SHAP analysis — load it with:
-    #   import xgboost as xgb
-    #   model = xgb.XGBRegressor()
-    #   model.load_model("xgb_model_t1.json")
-    #   explainer = shap.TreeExplainer(model)
     save_final_model(train_and_valid, best_params, feature_cols, target_col)
 
     return (test_predictions, test_actuals, test_metrics,
@@ -896,9 +941,13 @@ def fit_and_evaluate(train_df, valid_df, test_df, best_params, feature_cols, tar
 
 
 
-# ==============================================================================
-# STEP 9b — SAVE FINAL TRAINED MODEL  (NEW IN V2)                (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 9b — SAVE FINAL TRAINED MODEL
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # Train and save the final XGBoost model
 # ==============================================================================
 # This function trains one final XGBoost model using the complete
@@ -949,9 +998,13 @@ def save_final_model(train_and_valid_df, best_params, feature_cols, target_col):
 
 
 
-# =========================================== ==================================
-# STEP 10 — SAVE RESULTS TO CSV                       (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 10 — SAVE RESULTS TO CSV           
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # Save random search results and test predictions
 # ==============================================================================
 # This function exports:
@@ -980,11 +1033,11 @@ def save_outputs(full_df, train_len, valid_len,
     """
     tag = horizon_tag()
 
-    # --- File 1: random search results ---
+    # File 1: random search results 
     search_path = f"xgboost_random_search_results_{tag}.csv"
     search_results.to_csv(search_path, index=False)
 
-    # --- File 2: test predictions ---
+    # File 2: test predictions 
     start_idx = train_len + valid_len
     pred_df   = full_df.iloc[start_idx : start_idx + len(test_pred)].copy()
 
@@ -1008,10 +1061,14 @@ def save_outputs(full_df, train_len, valid_len,
 
 
 
-# ==============================================================================
+
 # MAIN                     
-# ==============================================================================
-# Execute the complete XGBoost forecasting pipeline            (IMPROVED BY CLAUDE-Sonnet-4.6)
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
+# Execute the complete XGBoost forecasting pipeline          
 # ==============================================================================
 # This function controls the entire forecasting workflow from start to finish.
 #
@@ -1036,10 +1093,10 @@ def xgboost_forecast():
       2. Build all lagged / rolling features  [no split yet — avoids leakage]
       3. Identify feature columns
       4. Split into train / valid / test chronologically (70 / 15 / 15)
-      5. Save train_{tag}.csv, valid_{tag}.csv, test_{tag}.csv  [NEW IN V2]
+      5. Save train_{tag}.csv, valid_{tag}.csv, test_{tag}.csv  
       6. Random search on validation set to find best hyperparameters
       7. Walk-forward evaluation on train and test sets
-      8. Save final model xgb_model_{tag}.json                  [NEW IN V2]
+      8. Save final model xgb_model_{tag}.json                 
       9. Re-evaluate validation set at stride=1 for the summary print
      10. Log and print all metrics
      11. Save prediction CSVs and random search results
@@ -1048,7 +1105,7 @@ def xgboost_forecast():
     target_col = target_col_name()
     tag        = horizon_tag()
 
-    # --- Step 1-2: Load and engineer features ---
+    # Step 1-2: Load and engineer features 
     df = load_data(CSV_PATH)
     df = build_features(df)
     feature_cols = get_feature_cols(df)
@@ -1057,28 +1114,28 @@ def xgboost_forecast():
     logging.info("Number of feature cols  : %d",          len(feature_cols))
     logging.info("Feature columns         : %s",          feature_cols)
 
-    # --- Step 3: Split (time-ordered, no shuffle) ---
+    # Step 3: Split (time-ordered, no shuffle) 
     train_df, valid_df, test_df = split_data(df)
 
-    # --- Step 4 (NEW): Persist the split datasets ---
+    # Step 4: Persist the split datasets 
     # These files are the ground truth for any downstream SHAP analysis.
     # They contain every feature column used by the model, plus the target,
     # and are free of any post-split transformations.
     save_datasets(train_df, valid_df, test_df)
 
-    # --- Step 5: Random search on validation set ---
+    # Step 5: Random search on validation set 
     best_params, search_results = random_search(
         train_df, valid_df, feature_cols, target_col
     )
 
-    # --- Step 6: Walk-forward evaluation on train and test sets ---
+    # Step 6: Walk-forward evaluation on train and test sets 
     # fit_and_evaluate also saves the final model (xgb_model_{tag}.json)
     (test_pred, test_actual, test_metrics,
      train_pred, train_actual, train_metrics) = fit_and_evaluate(
         train_df, valid_df, test_df, best_params, feature_cols, target_col
     )
 
-    # --- Step 7: Re-evaluate validation set at stride=1 for the summary ---
+    # Step 7: Re-evaluate validation set at stride=1 for the summary 
     valid_pred, valid_actual = walk_forward(
         train_df, valid_df,
         best_params,
@@ -1087,7 +1144,7 @@ def xgboost_forecast():
     )
     valid_metrics = calculate_metrics(valid_actual, valid_pred)
 
-    # --- Log all results ---
+    # Log all results 
     logging.info("----- TRAIN RESULTS (walk-forward, t+%d) -----", FORECAST_HORIZON)
     for metric_name, metric_value in train_metrics.items():
         logging.info("%-25s: %.8f", metric_name, metric_value)
@@ -1100,7 +1157,7 @@ def xgboost_forecast():
     for metric_name, metric_value in test_metrics.items():
         logging.info("%-25s: %.8f", metric_name, metric_value)
 
-    # --- Print formatted summaries to the terminal ---
+    # Print formatted summaries to the terminal 
     horizon_label = f"t+{FORECAST_HORIZON} forecast"
 
     print("\n" + "=" * 60)
@@ -1144,7 +1201,7 @@ def xgboost_forecast():
     print(f"  Saved predictions  :  xgboost_test_predictions_{tag}.csv")
     print(f"  Saved search log   :  xgboost_random_search_results_{tag}.csv\n")
 
-    # --- Save CSV outputs ---
+    # Save CSV outputs 
     save_outputs(
         full_df        = df,
         train_len      = len(train_df),
@@ -1163,39 +1220,3 @@ if __name__ == "__main__":
         format="%(asctime)s | %(levelname)s | %(message)s",
     )
     xgboost_forecast()
-
-
-# ==============================================================================
-# SHAP USAGE GUIDE  (run separately after this script completes)   (THIS ONE IS NOT USED)
-# ==============================================================================
-#
-# The code below is NOT executed automatically.  Copy it into a new notebook
-# or script to compute SHAP feature importance on the saved test set.
-#
-#   import shap
-#   import xgboost as xgb
-#   import pandas as pd
-#
-#   FORECAST_HORIZON = 1   # must match the value used during training
-#   tag = f"t{FORECAST_HORIZON}"
-#
-#   # 1. Reload the saved test set (already feature-engineered, no leakage)
-#   test_df = pd.read_csv(f"test_{tag}.csv")
-#
-#   # 2. Reconstruct the feature column list (same logic as get_feature_cols)
-#   EXCLUDE = {"Date", "Close", "log_return", "asset"}
-#   feature_cols = [c for c in test_df.columns
-#                   if c not in EXCLUDE and not c.startswith("target_")]
-#   X_test = test_df[feature_cols]
-#
-#   # 3. Load the saved final model
-#   model = xgb.XGBRegressor()
-#   model.load_model(f"xgb_model_{tag}.json")
-#
-#   # 4. Compute SHAP values
-#   explainer   = shap.TreeExplainer(model)
-#   shap_values = explainer.shap_values(X_test)
-#
-#   # 5. Visualise
-#   shap.summary_plot(shap_values, X_test)
-#   shap.summary_plot(shap_values, X_test, plot_type="bar")
