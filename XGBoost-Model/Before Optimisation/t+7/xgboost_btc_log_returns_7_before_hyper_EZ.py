@@ -40,7 +40,7 @@ import xgboost as xgb
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 
-# ==============================================================================
+
 # SETTINGS
 # ==============================================================================
 
@@ -92,9 +92,13 @@ FIXED_PARAMS = {
 
 
 
-# ==========================================================
-# STEP 1 — LOAD DATA                  (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================
+
+# STEP 1 — LOAD DATA                 
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function reads the raw Bitcoin dataset from CSV and prepares the
 # basic target variable for forecasting.
 #
@@ -154,9 +158,13 @@ def load_data(csv_path):
 
 
 
-# =====================================================================
-# STEP 2 — BUILD FEATURES                        (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==========================================================
+
+# STEP 2 — BUILD FEATURES                   
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function creates the predictive input variables used by the XGBoost model.
 # All features are constructed using past information only, which helps prevent
 # data leakage from future observations.
@@ -225,9 +233,13 @@ def build_features(df):
 
 
 
-# ==============================================================================
-# STEP 3 — IDENTIFY FEATURE COLUMNS                        (IMPROVED BY CLAUDE-Sonnet-4.6)
-# =====================================================
+
+# STEP 3 — IDENTIFY FEATURE COLUMNS                
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function identifies which columns should be used as model inputs.
 #
 # Columns that should not be used for prediction are excluded, including:
@@ -273,9 +285,13 @@ def get_feature_cols(df):
 
 
 
-# ==============================================================================
-# STEP 4 — SPLIT INTO TRAIN / VALIDATION / TEST                 (IMPROVED BY CLAUDE-Sonnet-4.6)
-# =======================================================
+
+# STEP 4 — SPLIT INTO TRAIN / VALIDATION / TEST            
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function divides the fully prepared dataset into three time-ordered
 # subsets using the predefined 70/15/15 split.
 #
@@ -319,9 +335,13 @@ def split_data(df):
 
 
 
-# ==============================================================================
-# STEP 5 — METRICS                           (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 5 — METRICS          
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # Calculate MAPE with protection against near-zero values
 # ==============================================================================
 # This function computes the Mean Absolute Percentage Error between actual
@@ -349,8 +369,12 @@ def safe_mape(y_true, y_pred, epsilon=1e-8):
 
 
 
-# Calculate directional accuracy             (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+# Calculate directional accuracy          
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function measures whether the model correctly predicts the direction
 # of the future Bitcoin return.
 #
@@ -381,8 +405,12 @@ def directional_accuracy(y_true, y_pred):
 
 
 
-# Calculate all evaluation metrics                (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+# Calculate all evaluation metrics             
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function computes the main metrics used to evaluate the XGBoost
 # forecasting performance.
 #
@@ -415,9 +443,13 @@ def calculate_metrics(y_true, y_pred):
 
 
 
-# ==============================================================================
-# STEP 6 — TRAIN A SINGLE XGBOOST MODEL                     (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 6 — TRAIN A SINGLE XGBOOST MODEL                 
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function fits an XGBoost model using the supplied training data and
 # fixed baseline hyperparameters.
 #
@@ -470,9 +502,13 @@ def train_xgb(X_train, y_train, params):
 
 
 
-# ==============================================================================
-# STEP 7 — WALK-FORWARD EVALUATION                    (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 7 — WALK-FORWARD EVALUATION           
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+
+# ---------------------------------------------------------------------------
 # This function evaluates the model in a realistic time-series setting.
 #
 # It moves through the evaluation set one observation at a time. At each step,
@@ -543,9 +579,13 @@ def walk_forward(train_df, eval_df, params, feature_cols, target_col, stride=1):
 
 
 
-# ==============================================================================
-# STEP 8 — EVALUATE ON VALIDATION SET                    (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 8 — EVALUATE ON VALIDATION SET                   
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # Evaluate the fixed XGBoost baseline on the validation set
 # ==============================================================================
 # This function applies walk-forward forecasting to the validation set using
@@ -595,9 +635,13 @@ def evaluate_on_validation(train_df, valid_df, feature_cols, target_col):
 
 
 
-# ==============================================================================
-# STEP 9 — EVALUATE ON TRAIN AND TEST SETS                (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 9 — EVALUATE ON TRAIN AND TEST SETS            
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # Evaluate the fixed XGBoost model on train and test sets
 # ==============================================================================
 # This function calculates both in-sample and out-of-sample performance for
@@ -664,9 +708,13 @@ def fit_and_evaluate(train_df, valid_df, test_df, feature_cols, target_col):
 
 
 
-# ==============================================================================
-# STEP 10 — SAVE RESULTS TO CSV                     (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# STEP 10 — SAVE RESULTS TO CSV                  
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function exports the key outputs from the baseline XGBoost experiment.
 #
 # First, it saves the fixed hyperparameter configuration together with the
@@ -723,9 +771,13 @@ def save_outputs(full_df, train_len, valid_len,
 
 
 
-# ==============================================================================
-# MAIN                           (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ==============================================================================
+
+# MAIN                       
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function controls the full workflow of the before-optimisation model.
 #
 # It loads and prepares the Bitcoin data, creates t+7 forecasting features,
