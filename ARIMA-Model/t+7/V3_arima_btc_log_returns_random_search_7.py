@@ -46,7 +46,7 @@ from sklearn.metrics import (
 
 
 # ---------------------------------------------------------------------------
-# Configuration
+# Configuration        
 # ---------------------------------------------------------------------------
 
 CSV_PATH = "btc_clean.csv"
@@ -85,7 +85,7 @@ RANDOM_SEED = 42
 
 
 # ---------------------------------------------------------------------------
-# Data loading & preprocessing
+# Data loading & preprocessing       (IMPROVED BY CLAUDE-Sonnet-4.6)
 # ---------------------------------------------------------------------------
 
 def load_data(csv_path):
@@ -119,8 +119,8 @@ def load_data(csv_path):
     return df
 
 
-# ---------------------------------------------------------------------------
-# Train / validation / test split
+# ------------------------------------- --------------------------------------
+# Train / validation / test split             (IMPROVED BY CLAUDE-Sonnet-4.6)
 # ---------------------------------------------------------------------------
 
 def split_series(df):
@@ -154,8 +154,8 @@ def split_series(df):
 
 
 # ---------------------------------------------------------------------------
-# Metric helpers
-# ---------------------------------------------------------------------------
+# Metric helpers                 (IMPROVED BY CLAUDE-Sonnet-4.6)
+# ----------------------------------- ----------------------------------------
 
 def safe_mape(y_true, y_pred, epsilon=1e-8):
     """MAPE with a small epsilon guard to avoid division by near-zero values."""
@@ -191,7 +191,7 @@ def calculate_metrics(y_true, y_pred):
 
 
 # ---------------------------------------------------------------------------
-# REVISED: 100-day lookback forecasting (replaces walk-forward evaluation)
+# REVISED: 100-day lookback forecasting (replaces walk-forward evaluation)   (IMPROVED BY CLAUDE-Sonnet-4.6)
 # ---------------------------------------------------------------------------
 
 def lookback_forecast(context_series, eval_series, order, lookback=LOOKBACK,
@@ -300,7 +300,7 @@ def lookback_forecast(context_series, eval_series, order, lookback=LOOKBACK,
 
 
 # ---------------------------------------------------------------------------
-# REVISED: Random search over (p, d, q) — replaces exhaustive grid search
+# REVISED: Random search over (p, d, q) — replaces exhaustive grid search     (IMPROVED BY CLAUDE-Sonnet-4.6)
 # ---------------------------------------------------------------------------
 
 def sample_unique_orders(n_samples, seed=RANDOM_SEED):
@@ -427,7 +427,7 @@ def select_best_order(train_series, valid_series):
 
 
 # ---------------------------------------------------------------------------
-# Evaluation on the train set (in-sample, 100-day lookback)
+# Evaluation on the train set (in-sample, 100-day lookback)    (IMPROVED BY CLAUDE-Sonnet-4.6)
 # ---------------------------------------------------------------------------
 
 def evaluate_on_train(train_series, order):
@@ -453,7 +453,7 @@ def evaluate_on_train(train_series, order):
 
 
 # ---------------------------------------------------------------------------
-# Evaluation on the validation set with the best order
+# Evaluation on the validation set with the best order       (IMPROVED BY CLAUDE-Sonnet-4.6)
 # ---------------------------------------------------------------------------
 
 def evaluate_on_validation(train_series, valid_series, order):
@@ -469,7 +469,7 @@ def evaluate_on_validation(train_series, valid_series, order):
 
 
 # ---------------------------------------------------------------------------
-# Final evaluation on the test set
+# Final evaluation on the test set                 (IMPROVED BY CLAUDE-Sonnet-4.6)
 # ---------------------------------------------------------------------------
 
 def evaluate_on_test(train_series, valid_series, test_series, order):
@@ -493,8 +493,8 @@ def evaluate_on_test(train_series, valid_series, test_series, order):
 
 
 # ---------------------------------------------------------------------------
-# Output helpers
-# ---------------------------------------------------------------------------
+# Output helpers              (IMPROVED BY CLAUDE-Sonnet-4.6)
+# --------------------------------------------- ------------------------------
 
 def save_outputs(full_df, train_len, valid_len, test_pred, test_actual,
                  best_order, search_results, train_metrics, valid_metrics, test_metrics):
@@ -531,7 +531,7 @@ def save_outputs(full_df, train_len, valid_len, test_pred, test_actual,
 
 
 # ---------------------------------------------------------------------------
-# Main entry point
+# Main entry point                 (IMPROVED BY CLAUDE-Sonnet-4.6)
 # ---------------------------------------------------------------------------
 
 def arima_forecast():
@@ -570,7 +570,7 @@ def arima_forecast():
     )
 
     # ------------------------------------------------------------------
-    # Step 5: Print results in the same format as the XGBoost output
+    # Step 5: Print results in the same format as the XGBoost output        (IMPROVED BY CLAUDE-Sonnet-4.6)
     # ------------------------------------------------------------------
     SEP = "=" * 55
 
