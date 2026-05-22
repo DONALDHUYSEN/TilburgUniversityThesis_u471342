@@ -12,11 +12,8 @@ FORECAST HORIZON : Changed from t+1 to t+7. At each evaluation position the
            true log-return 7 days later. Eval positions advance one-by-one
            but each prediction looks 7 steps into the future.
 
-ORIGINAL:  Rolling walk-forward evaluation — the model was re-fitted on an
-           ever-growing history (full training set + every previously observed
-           test point) and produced one step-ahead forecasts sequentially.
 
-REVISED:   100-day fixed lookback window — at each evaluation position the
+LOGIC:     100-day fixed lookback window — at each evaluation position the
            model is fitted on exactly the 100 most-recent observations that
            precede that point, then a 7-step-ahead forecast is made.
            No rolling history accumulation occurs. This mirrors the
@@ -45,7 +42,7 @@ from sklearn.metrics import (
 )
 
 
-# ---------------------------------------------------------------------------
+
 # Configuration        
 # ---------------------------------------------------------------------------
 
@@ -63,17 +60,17 @@ P_VALUES = list(range(0, 6))   # 0, 1, 2, 3, 4, 5
 D_VALUES = list(range(0, 3))   # 0, 1, 2
 Q_VALUES = list(range(0, 6))   # 0, 1, 2, 3, 4, 5
 
-# ---------------------------------------------------------------------------
-# REVISED: fixed lookback window size (replaces rolling walk-forward history)
+
+# fixed lookback window size (replaces rolling walk-forward history)
 # ---------------------------------------------------------------------------
 LOOKBACK = 100
 
-# ---------------------------------------------------------------------------
+
 # Forecast horizon: number of steps ahead to predict
 # ---------------------------------------------------------------------------
 FORECAST_HORIZON = 7
 
-# ---------------------------------------------------------------------------
+
 # Random search: how many unique ARIMA configurations to evaluate
 # ---------------------------------------------------------------------------
 # NOTE: Grid search (p x d x q = 6x3x6 = 108 combos) is replaced by random
@@ -84,9 +81,33 @@ NUM_RANDOM_SEARCH_MODELS = 60
 RANDOM_SEED = 42
 
 
+
+
+
+
+
+
+
+
+# Data loading & preprocessing 
 # ---------------------------------------------------------------------------
-# Data loading & preprocessing       (IMPROVED BY CLAUDE-Sonnet-4.6)
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
 # ---------------------------------------------------------------------------
+# This function:
+# 1. Reads the CSV file containing historical Bitcoin prices.
+# 2. Converts the date column to datetime format and sorts the dataset
+#    chronologically to preserve temporal order.
+# 3. Checks whether the required closing price column exists.
+# 4. Keeps only the relevant columns (Date and Close price).
+# 5. Converts price values to numeric format and removes invalid rows.
+# 6. Computes daily log returns using:
+#       r_t = log(P_t / P_{t-1})
+#    which transforms raw prices into stationary percentage-like changes.
+# 7. Removes the first NaN row created by the differencing operation.
+#
+# The returned dataframe is therefore cleaned, chronologically ordered,
+# and ready for time-series forecasting with ARIMA.
 
 def load_data(csv_path):
     """Load CSV, sort by date, and compute daily log returns from Close price."""
@@ -119,10 +140,41 @@ def load_data(csv_path):
     return df
 
 
-# ------------------------------------- --------------------------------------
-# Train / validation / test split             (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ---------------------------------------------------------------------------
 
+
+
+
+
+
+
+
+
+
+
+# Train / validation / test split        
+# ---------------------------------------------------------------------------    
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+# This function divides the full time-series dataset into three sequential
+# subsets while preserving chronological order:
+#
+# - Training set   : used to fit the ARIMA models
+# - Validation set : used during random search to compare ARIMA configurations
+# - Test set       : used only for the final out-of-sample evaluation
+#
+# The split ratios are:
+#   70% training
+#   15% validation
+#   15% testing
+#
+# Unlike random splitting, no shuffling is applied because time-series models
+# must only learn from past observations when predicting future values.
+#
+# An additional safety check verifies that the training set contains at least
+# LOOKBACK observations. This is necessary because the 100-day sliding-window
+# forecasting approach requires a full historical context window before the
+# first validation prediction can be generated.
 def split_series(df):
     """
     Split the full log-return series into train, validation, and test subsets.
@@ -153,10 +205,53 @@ def split_series(df):
     return train, valid, test
 
 
-# ---------------------------------------------------------------------------
-# Metric helpers                 (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ----------------------------------- ----------------------------------------
 
+
+
+
+
+
+
+
+
+
+
+# Metric helpers            
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+# These helper functions calculate the performance metrics used to evaluate
+# the forecasting accuracy of the ARIMA model.
+#
+# The metrics serve different purposes:
+#
+# - MAE (Mean Absolute Error):
+#     Measures the average absolute prediction error.
+#     Easier to interpret because errors remain in the original log-return scale.
+#
+# - RMSE (Root Mean Squared Error):
+#     Similar to MAE, but penalises larger prediction errors more heavily.
+#     Particularly relevant for Bitcoin due to sudden volatile price movements.
+#
+# - MAPE (Mean Absolute Percentage Error):
+#     Measures prediction error in percentage terms.
+#     A small epsilon value is added in the denominator to avoid instability
+#     when actual log returns are close to zero.
+#
+# - Directional Accuracy:
+#     Measures how often the model correctly predicts the direction
+#     of the market movement (positive or negative return).
+#
+# - R² (Coefficient of Determination):
+#     Indicates how much variance in the true values is explained by the model.
+#
+# - Explained Variance:
+#     Measures how well the model captures variation in the target series,
+#     while being less sensitive to systematic prediction bias.
+#
+# Together, these metrics provide both statistical and practical insight
+# into forecasting performance.
 def safe_mape(y_true, y_pred, epsilon=1e-8):
     """MAPE with a small epsilon guard to avoid division by near-zero values."""
     y_true = np.asarray(y_true)
@@ -190,23 +285,60 @@ def calculate_metrics(y_true, y_pred):
     }
 
 
-# ---------------------------------------------------------------------------
-# REVISED: 100-day lookback forecasting (replaces walk-forward evaluation)   (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ---------------------------------------------------------------------------
 
+
+
+
+
+
+
+
+
+
+
+# 100-day lookback forecasting 
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+# This function performs 7-step-ahead forecasting using a rolling
+# fixed-length historical window rather than an expanding walk-forward history.
+#
+# Forecasting procedure:
+#
+# 1. A window containing exactly `lookback` historical observations
+#    is selected directly before the prediction point.
+#
+# 2. A new ARIMA(p,d,q) model is fitted only on this fixed window.
+#
+# 3. The model generates a single forecast for the next timestep (t+7).
+#
+# 4. The window then shifts forward by one observation and the process
+#    repeats until the full evaluation series has been predicted.
+#
+# Unlike traditional walk-forward validation, the historical training size
+# does not continuously expand over time. This ensures that every prediction
+# is generated using the same amount of historical information, which improves
+# methodological consistency across evaluation steps.
+#
+# The approach was specifically chosen to mirror the 100-day sliding-window
+# methodology used in the LSTM and CNN-LSTM models. This makes comparisons
+# between ARIMA and the deep learning architectures more consistent and fair.
+#
+# Additional safeguards:
+# - Invalid model fits are caught with try/except blocks.
+# - Failed forecasts are stored as NaN and removed afterwards.
+# - Warnings from statsmodels are suppressed to reduce unnecessary output.
+#
+# Returns:
+# - predictions : array containing the predicted log returns
+# - actuals     : array containing the corresponding true log returns
 def lookback_forecast(context_series, eval_series, order, lookback=LOOKBACK,
                       horizon=FORECAST_HORIZON):
     """
     Fixed-window multi-step-ahead ARIMA forecasting.
 
-    REPLACED LOGIC
-    --------------
-    Original walk-forward approach:
-        - Fit once on the full training set.
-        - After each prediction, append the true value so the history grows
-          by one row at every step.
-
-    NEW 100-day lookback approach (t+7)
+    100-day lookback approach (t+7)
     -------------------------------------
     For each position i in eval_series where i + horizon - 1 is still within
     eval_series:
@@ -299,10 +431,52 @@ def lookback_forecast(context_series, eval_series, order, lookback=LOOKBACK,
     return np.asarray(predictions, dtype=float), np.asarray(actuals, dtype=float)
 
 
-# ---------------------------------------------------------------------------
-# REVISED: Random search over (p, d, q) — replaces exhaustive grid search     (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ---------------------------------------------------------------------------
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Random search over (p, d, q) — replaces exhaustive grid search
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+# This function generates a set of unique ARIMA(p,d,q) configurations
+# for the random search optimisation process.
+#
+# The full search space is constructed from:
+# - p : autoregressive terms
+# - d : differencing order
+# - q : moving average terms
+#
+# Instead of evaluating every possible combination through exhaustive
+# grid search, the function randomly selects a subset of configurations.
+# This substantially reduces computational cost while still exploring
+# a diverse range of ARIMA structures.
+#
+# Workflow:
+# 1. Generate all possible (p,d,q) combinations from the predefined ranges.
+# 2. Randomly shuffle the full list of configurations.
+# 3. Select the first `n_samples` unique combinations.
+#
+# A fixed random seed is used to ensure reproducibility, meaning the same
+# parameter combinations will be sampled each time the script is executed.
+#
+# In this implementation:
+# - Total search space  = 108 unique ARIMA combinations
+# - Random search tests = 60 unique configurations
+#
+# The sampled configurations are later evaluated on the validation set
+# using the fixed 100-day lookback forecasting approach.
 def sample_unique_orders(n_samples, seed=RANDOM_SEED):
     """
     Sample up to n_samples unique (p, d, q) combinations from the same
@@ -336,15 +510,61 @@ def sample_unique_orders(n_samples, seed=RANDOM_SEED):
     return sampled
 
 
+
+
+
+
+
+
+
+
+
+
+# Select the best ARIMA(p,d,q) configuration using random search              
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.   
+# ---------------------------------------------------------------------
+# This function performs hyperparameter optimisation for the ARIMA model.
+#
+# Instead of using exhaustive grid search across the full parameter space,
+# a random search strategy is applied to reduce computational cost while
+# still exploring a diverse range of ARIMA configurations.
+#
+# Workflow:
+#
+# 1. Randomly sample a predefined number of unique ARIMA(p,d,q)
+#    combinations from the full search space.
+#
+# 2. For each sampled configuration:
+#       - Fit the ARIMA model using the fixed 100-day lookback window
+#       - Generate validation forecasts
+#       - Compute evaluation metrics
+#
+# 3. Store the validation performance of every successfully fitted model.
+#
+# 4. Rank all configurations based on validation RMSE.
+#
+# 5. Select the configuration with the lowest RMSE as the optimal model.
+#
+# Why RMSE is used as the selection criterion:
+# RMSE penalises large forecasting errors more heavily than MAE due to
+# the squared error term. This is particularly relevant for Bitcoin
+# forecasting because sudden market movements and volatility spikes can
+# produce large prediction deviations.
+#
+# Additional safeguards:
+# - Failed ARIMA fits are skipped using try/except handling.
+# - Models producing invalid predictions are excluded.
+# - Logging is used to track validation performance for every configuration.
+#
+# Returns:
+# - best_order : tuple containing the optimal ARIMA(p,d,q) parameters
+# - results_df : dataframe containing validation results for all tested models
 def select_best_order(train_series, valid_series):
     """
     Random search over (p, d, q) space evaluated on the validation set.
-
-    REPLACED LOGIC
-    --------------
-    Original: Exhaustive grid search — tested every combination in P x D x Q.
-
-    NEW: Random search sampling exactly NUM_RANDOM_SEARCH_MODELS (60) unique
+         Random search sampling exactly NUM_RANDOM_SEARCH_MODELS (60) unique
          ARIMA configurations from the same P_VALUES x D_VALUES x Q_VALUES
          space. Duplicates are discarded before testing so we always compare
          60 distinct models (or fewer if the space itself is smaller, which
@@ -368,7 +588,7 @@ def select_best_order(train_series, valid_series):
         p, d, q = order
         try:
             # ------------------------------------------------------------------
-            # REVISED: use 100-day lookback evaluation on validation set
+            # use 100-day lookback evaluation on validation set
             # (original used walk-forward evaluation here)
             # ------------------------------------------------------------------
             pred, actual = lookback_forecast(train_series, valid_series, order)
@@ -426,10 +646,42 @@ def select_best_order(train_series, valid_series):
     return best_order, results_df
 
 
-# ---------------------------------------------------------------------------
-# Evaluation on the train set (in-sample, 100-day lookback)    (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ---------------------------------------------------------------------------
 
+
+
+
+
+
+
+
+# Evaluation on the train set (in-sample, 100-day lookback)       
+# ---------------------------------------------------------------------------
+# This function measures the in-sample performance of the best ARIMA(p,d,q)
+# configuration using the same fixed 100-day sliding-window methodology
+# applied during validation and testing.
+#
+# Evaluation procedure:
+#
+# 1. The first LOOKBACK observations are used as the initial historical
+#    context window.
+#
+# 2. Starting from observation LOOKBACK + 7, the model repeatedly:
+#       - fits an ARIMA model on the previous 100 observations
+#       - predicts the next timestep (t+7 log return)
+#
+# 3. Predicted values are compared against the true log returns.
+#
+# 4. Forecasting metrics such as MAE, RMSE, MAPE, Directional Accuracy,
+#    R², and Explained Variance are calculated.
+#
+# Using the same sliding-window structure across train, validation,
+# and test evaluation ensures methodological consistency throughout
+# the entire forecasting pipeline.
+#
+# Returns:
+# - train_pred    : predicted log returns for the training set
+# - train_actual  : true log returns corresponding to the predictions
+# - train_metrics : dictionary containing all evaluation metrics
 def evaluate_on_train(train_series, order):
     """
     Evaluate the best ARIMA order on the training set using the same
@@ -452,10 +704,43 @@ def evaluate_on_train(train_series, order):
     return train_pred, train_actual, train_metrics
 
 
-# ---------------------------------------------------------------------------
-# Evaluation on the validation set with the best order       (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ---------------------------------------------------------------------------
 
+
+
+
+
+
+
+
+
+# Evaluation on the validation set with the best order     
+# ---------------------------------------------------------------------------
+# This function evaluates the best ARIMA(p,d,q) configuration on the
+# validation dataset using the same fixed 100-day sliding-window
+# forecasting methodology applied throughout the pipeline.
+#
+# Purpose of the validation evaluation:
+# - Assess how well the selected model generalises to unseen data
+#   after hyperparameter optimisation.
+# - Provide a consistent comparison point between training and test results.
+# - Generate validation metrics that can later be reported and analysed.
+#
+# Forecasting procedure:
+# 1. Use the training series as historical context.
+# 2. Apply the fixed 100-day lookback forecasting process on the
+#    validation observations.
+# 3. Compare predicted and actual log returns.
+# 4. Compute evaluation metrics including MAE, RMSE, MAPE,
+#    Directional Accuracy, R², and Explained Variance.
+#
+# Using the exact same evaluation structure across train, validation,
+# and test datasets ensures methodological consistency and reduces the
+# risk of unfair performance comparisons between datasets.
+#
+# Returns:
+# - valid_pred    : predicted log returns for the validation set
+# - valid_actual  : true log returns corresponding to the predictions
+# - valid_metrics : dictionary containing all evaluation metrics
 def evaluate_on_validation(train_series, valid_series, order):
     """
     Re-run the 100-day lookback forecast on the validation set using the
@@ -468,10 +753,55 @@ def evaluate_on_validation(train_series, valid_series, order):
     return valid_pred, valid_actual, valid_metrics
 
 
-# ---------------------------------------------------------------------------
-# Final evaluation on the test set                 (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ---------------------------------------------------------------------------
 
+
+
+
+
+
+
+
+
+
+# Final evaluation on the test set                    
+# ---------------------------------------------------------------------------
+# This function performs the final out-of-sample evaluation of the best
+# ARIMA(p,d,q) configuration on completely unseen test data.
+#
+# The test evaluation represents the most important performance assessment
+# because the model has not previously used these observations during either
+# training or hyperparameter optimisation.
+#
+# Forecasting procedure:
+#
+# 1. Combine the training and validation series into one continuous
+#    historical context dataset.
+#
+# 2. Apply the fixed 100-day sliding-window forecasting process
+#    on the test set observations.
+#
+# 3. For each prediction step:
+#       - fit the ARIMA model on the previous 100 observations
+#       - generate a 7-step-ahead forecast (t+7 log return)
+#
+# 4. Compare predicted and actual log returns.
+#
+# 5. Compute the final evaluation metrics including:
+#       - MAE
+#       - RMSE
+#       - MAPE
+#       - Directional Accuracy
+#       - R²
+#       - Explained Variance
+#
+# Unlike traditional walk-forward validation, the historical window size
+# remains fixed rather than continuously expanding. This maintains direct
+# methodological consistency with the LSTM and CNN-LSTM evaluation pipelines.
+#
+# Returns:
+# - test_pred    : predicted log returns for the test set
+# - test_actual  : true log returns corresponding to the predictions
+# - test_metrics : dictionary containing all evaluation metrics
 def evaluate_on_test(train_series, valid_series, test_series, order):
     """
     Evaluate the best ARIMA order on the held-out test set using the same
@@ -484,7 +814,7 @@ def evaluate_on_test(train_series, valid_series, test_series, order):
     train_valid_series = pd.concat([train_series, valid_series], axis=0)
 
     # ------------------------------------------------------------------
-    # REVISED: 100-day lookback on test set (replaces walk-forward eval)
+    # 100-day lookback on test set (replaces walk-forward eval)
     # ------------------------------------------------------------------
     test_pred, test_actual = lookback_forecast(train_valid_series, test_series, order)
 
@@ -492,10 +822,27 @@ def evaluate_on_test(train_series, valid_series, test_series, order):
     return test_pred, test_actual, test_metrics
 
 
-# ---------------------------------------------------------------------------
-# Output helpers              (IMPROVED BY CLAUDE-Sonnet-4.6)
-# --------------------------------------------- ------------------------------
 
+
+
+
+
+
+
+
+
+# Output helpers     
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.              
+# ---------------------------------------------------------------------------
+# This function exports:
+# - all random search validation results
+# - the final test predictions and actual values
+# - a summary table containing train, validation, and test metrics
+#
+# The saved files allow further analysis, visualisation, and comparison
+# of the ARIMA forecasting performance outside the Python environment.
 def save_outputs(full_df, train_len, valid_len, test_pred, test_actual,
                  best_order, search_results, train_metrics, valid_metrics, test_metrics):
     """Save random search results, test predictions, and summary metrics to CSV files."""
@@ -530,10 +877,33 @@ def save_outputs(full_df, train_len, valid_len, test_pred, test_actual,
     logging.info("Saved metrics summary        -> arima_metrics_summary_7.csv")
 
 
-# ---------------------------------------------------------------------------
-# Main entry point                 (IMPROVED BY CLAUDE-Sonnet-4.6)
-# ---------------------------------------------------------------------------
 
+
+
+
+
+
+
+
+
+
+
+
+# Main entry point      
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.           
+# ---------------------------------------------------------------------------
+# This function executes the complete ARIMA forecasting workflow:
+# - load and preprocess the data
+# - split the dataset into train/validation/test sets
+# - perform random search hyperparameter optimisation
+# - evaluate the best ARIMA model on all datasets
+# - print forecasting results and evaluation metrics
+# - save outputs and predictions to CSV files
+#
+# The function serves as the central controller of the entire forecasting
+# and evaluation process.
 def arima_forecast():
 
     # Step 1: Load CSV and compute daily log returns from Close price
@@ -548,7 +918,6 @@ def arima_forecast():
 
     # Step 3: Random search — sample 60 unique (p, d, q) configs and pick the
     #         best one based on validation RMSE using the 100-day lookback method.
-    #         NOTE: this replaces the original exhaustive grid search.
     best_order, search_results = select_best_order(train_series, valid_series)
 
     # Step 4a: Evaluate the best order on the training set (in-sample,
