@@ -5,8 +5,7 @@ LSTM model for Bitcoin log-return forecasting.
 Online learning variant with a fixed 100-day lookback window.
 WITH hyperparameter optimisation via RANDOM SEARCH over PARAM_GRID.
 
-WHAT IS NEW IN V3 (vs. V2)
-───────────────────────────
+
 1. VALIDATION DATA LEAKAGE FIX (critical)
    During random search, validation is now performed by predict_only_evaluate
    instead of online_evaluate.  The new function generates predictions
@@ -18,16 +17,8 @@ WHAT IS NEW IN V3 (vs. V2)
    online_evaluate (with train_on_batch) is still used on the test set in
    fit_and_evaluate, where true online learning is the intended behaviour.
 
-2. N_RANDOM_DRAWS REDUCED FROM 60 TO 30
-   The leakage-free validation loop is slightly cheaper (no gradient update
-   per step), so 30 draws still provides a reasonable search coverage while
-   keeping total wall-clock time comparable to V2.
-
-ALL V2 FUNCTIONALITY IS OTHERWISE PRESERVED UNCHANGED
+ALL FUNCTIONALITY IS UNCHANGED
 ──────────────────────────────────────────────────────
-
-WHAT IS NEW IN V2 (vs. lstm_btc_log_returns_random_search_1.py)
-────────────────────────────────────────────────────────────────
 1. DATASET SAVING AFTER FEATURE ENGINEERING & SPLITTING
    After feature engineering and the chronological 70/15/15 split, the three
    unscaled DataFrames are saved as CSV files:
@@ -69,7 +60,6 @@ WHAT IS NEW IN V2 (vs. lstm_btc_log_returns_random_search_1.py)
    exact feature matrix from the saved CSVs in a separate analysis notebook.
 
 ALL EXISTING FUNCTIONALITY IS PRESERVED UNCHANGED
-──────────────────────────────────────────────────
   • Random search hyperparameter optimisation (N_RANDOM_DRAWS combinations)
   • Online learning via train_on_batch
   • 100-day fixed lookback window
@@ -142,7 +132,7 @@ import warnings
 from math import sqrt
 from pathlib import Path
 
-# ── Silence TensorFlow noise BEFORE importing TensorFlow ──────────────────────
+# Silence TensorFlow noise BEFORE importing TensorFlow
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
 
@@ -158,7 +148,7 @@ from keras.models import Sequential
 from keras.optimizers import Adam
 
 
-# ── Reproducibility ────────────────────────────────────────────────────────────
+# Reproducibility
 # Fix all random seeds so results are reproducible across runs.
 RANDOM_SEED = 42
 os.environ["PYTHONHASHSEED"] = str(RANDOM_SEED)
@@ -167,7 +157,7 @@ np.random.seed(RANDOM_SEED)
 tf.random.set_seed(RANDOM_SEED)
 
 
-# ── Configuration ──────────────────────────────────────────────────────────────
+# Configuration
 CSV_PATH     = "btc_clean.csv"   # Path to the input data file
 PRICE_COLUMN = "Close"           # Name of the price column in the CSV
 DATE_COLUMN  = "Date"            # Name of the date column in the CSV
@@ -177,7 +167,7 @@ TRAIN_RATIO = 0.70
 VALID_RATIO = 0.15
 TEST_RATIO  = 0.15
 
-# ── NEW (V2): Forecast horizon ─────────────────────────────────────────────────
+# Forecast horizon
 # Change this value to run the full pipeline for a different horizon.
 # Examples: 1 (t+1), 7 (t+7), 30 (t+30).
 # All output filenames and the target column will automatically reflect the
@@ -193,7 +183,7 @@ LAG_FEATURES   = list(range(1, 6))  # Lagged log returns: t-1 to t-5
 ROLLING_WINDOW = 5                  # Window size for rolling volatility feature
 
 
-# ── Hyperparameter search space ────────────────────────────────────────────────
+# Hyperparameter search space
 # All possible values for each hyperparameter.
 # The full grid contains 4 × 2 × 4 × 3 × 3 = 288 combinations in total.
 #
@@ -206,19 +196,25 @@ PARAM_GRID = {
     "batch_size":    [16, 32, 64],          # samples per gradient update during training
 }
 
-# ── Random search budget ───────────────────────────────────────────────────────
+# Random search budget
 # Controls how many combinations to sample from the full pool.
 # Rule of thumb: 20–60 often finds near-optimal results.
 # With 288 total combinations, setting N_RANDOM_DRAWS = 30 evaluates ~10%.
-# V3 change: reduced from 60 to 30 to offset the cost of leakage-free evaluation.
 N_RANDOM_DRAWS = 60
 
 
 
 
 
-# ── Horizon-tagged filename helper ──────────────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+
+
+
+# Horizon-tagged filename helper 
+# # ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function creates a short label based on the selected forecast horizon.
 # For this script, FORECAST_HORIZON = 7, so the tag becomes "t7".
 # The tag is used in filenames for datasets, models, scalers,
@@ -243,8 +239,12 @@ def horizon_tag() -> str:
 
 
 
-# ── Data loading & feature engineering ──────────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+# Data loading & feature engineering
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function creates the feature columns used by the LSTM.
 # Categorical variables are converted into numeric codes where needed.
 # Lagged log returns are added so the model can use recent return history.
@@ -324,8 +324,15 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 
-# Load Bitcoin data and create the t+7 prediction target         (IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+
+
+
+# Load Bitcoin data and create the t+7 prediction target    
+# # ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function reads the raw Bitcoin CSV file.
 # It sorts rows chronologically and validates the closing price column.
 # Daily log returns are calculated from the closing price.
@@ -389,8 +396,15 @@ def load_data(csv_path: str) -> pd.DataFrame:
 
 
 
-# Select the columns used as LSTM input features             (IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+
+
+
+# Select the columns used as LSTM input features         
+# # ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function returns the ordered list of model input columns.
 # It excludes the date, close price, raw log return, asset column,
 # and every column that starts with "target_".
@@ -429,8 +443,12 @@ def get_feature_cols(df: pd.DataFrame) -> list:
 
 
 
-# ── Train / validation / test split ──────────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+# Train / validation / test split
+# # ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function divides the processed dataframe into chronological subsets.
 # The split follows the predefined 70/15/15 ratio.
 # The training set is used for model fitting.
@@ -466,8 +484,12 @@ def split_data(df: pd.DataFrame):
 
 
 
-# ── NEW (V2): Dataset saving ───────────────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+# Dataset saving
+# # ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function exports the processed splits to horizon-tagged CSV files.
 # Only the date column, selected feature columns, and target column are saved.
 # The data is saved before scaling, so future analysis can reuse raw features.
@@ -486,8 +508,7 @@ def save_split_datasets(
     """
     Save the three unscaled splits to CSV files for reproducible reuse.
 
-    IMPORTANT — What is saved and why
-    ───────────────────────────────────
+    What is saved and why
     • Only the feature columns and the target column are saved.
       This produces a clean, minimal dataset that exactly matches what the
       model sees (before scaling), with no superfluous columns.
@@ -499,14 +520,12 @@ def save_split_datasets(
     • Files are named with the horizon tag so that multiple runs (t+1, t+7,
       t+30) coexist in the same directory without overwriting each other.
 
-    SHAP / permutation importance workflow (downstream)
-    ────────────────────────────────────────────────────
+    SHAP / permutation importance workflow 
     Load test_tH.csv, apply scaler_tv_tH.joblib, build sequences, then call
     your SHAP explainer or permutation importance routine on the test set.
     No retraining is needed — load lstm_model_tH.keras directly.
 
     Parameters
-    ----------
     train_df, valid_df, test_df : the three unscaled split DataFrames
     feature_cols : ordered list of feature column names
     target_col   : name of the target column
@@ -548,8 +567,12 @@ def save_split_datasets(
 
 
 
-# ── NEW (V2): Model and scaler persistence ──────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+# Model and scaler persistence
+# # ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function saves the final LSTM model and StandardScaler to disk.
 # The model is saved as a Keras file containing architecture and weights.
 # The scaler is saved with joblib.
@@ -615,8 +638,12 @@ def save_model_and_scaler(
 
 
 
-# ── Metrics ────────────────────────────────────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+# Metrics 
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function computes Mean Absolute Percentage Error.
 # Bitcoin log returns can be very close to zero.
 # Direct division by these values can create unstable or extreme errors.
@@ -639,8 +666,12 @@ def safe_mape(y_true: np.ndarray, y_pred: np.ndarray, epsilon: float = 1e-8) -> 
 
 
 
-# Calculate directional accuracy                  (IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+# Calculate directional accuracy               
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function measures whether the model predicts the correct return direction.
 # It compares the sign of the predicted log return with the sign of the actual
 # future log return.
@@ -660,8 +691,12 @@ def directional_accuracy(y_true: np.ndarray, y_pred: np.ndarray) -> float:
 
 
 
-# Calculate model evaluation metrics                (IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+# Calculate model evaluation metrics           
+# # ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function computes the main evaluation metrics for the LSTM forecasts.
 # MAE measures the average absolute forecasting error.
 # RMSE gives stronger weight to larger prediction errors.
@@ -685,8 +720,11 @@ def calculate_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
 
 
 
-# ── Sequence construction ───────────────────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+# Sequence construction
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
 # This function transforms a 2-D feature matrix into 3-D sequences.
 # Each sequence contains the previous LOOKBACK observations.
 # With LOOKBACK = 100, every prediction uses the last 100 days of inputs.
@@ -745,8 +783,12 @@ def build_sequences(X: np.ndarray, y: np.ndarray):
 
 
 
-# ── LSTM model builder ──────────────────────────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+# LSTM model builder
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function defines the LSTM model architecture.
 # It creates an input layer based on LOOKBACK and the number of features.
 # Depending on the parameters, it builds either one LSTM layer or two stacked
@@ -807,8 +849,14 @@ def build_lstm(
 
 
 
-# ── Initial training (with early stopping) ───────────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+
+
+# Initial training (with early stopping)
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function builds and trains the LSTM using the supplied hyperparameters.
 # It trains on pre-built LOOKBACK sequences.
 # If enough sequences are available, the last EARLY_STOP_WINDOW sequences are
@@ -831,14 +879,12 @@ def initial_train(
     before online updates begin.
 
     Parameters
-    ----------
     X_seq  : (N, LOOKBACK, F) sequences built from the training pool
     y_seq  : (N,) corresponding targets
     params : hyperparameter dictionary (must include lstm_units, n_lstm_layers,
              dropout_rate, learning_rate, batch_size)
 
     Returns
-    -------
     Trained Keras Sequential model.
     """
     n_features = X_seq.shape[2]
@@ -896,8 +942,14 @@ def initial_train(
 
 
 
-# ── Online evaluation loop ──────────────────────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+
+
+# Online evaluation loop 
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function simulates a streaming forecasting setup.
 # For each new evaluation row, the model first predicts using the latest
 # LOOKBACK rows from the context buffer.
@@ -927,7 +979,6 @@ def online_evaluate(
     new data point arrives.
 
     Parameters
-    ----------
     model             : pre-trained Keras LSTM model
     X_eval_scaled     : (M, F) scaled features for the evaluation block
     y_eval            : (M,) targets for the evaluation block
@@ -936,7 +987,6 @@ def online_evaluate(
                         preceding the evaluation block (at least LOOKBACK rows)
 
     Returns
-    -------
     predictions : numpy array of predicted log returns
     actuals     : numpy array of actual log returns
     """
@@ -987,8 +1037,13 @@ def online_evaluate(
 
 
 
-# ── Leakage-free validation evaluation loop ──────────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+
+# Leakage-free validation evaluation loop
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function is similar to online_evaluate, but deliberately does not call
 # train_on_batch after each prediction.
 # It is used during random search validation to avoid data leakage.
@@ -1022,7 +1077,6 @@ def predict_only_evaluate(
     train_on_batch step after each prediction to simulate true online learning.
 
     Parameters
-    ----------
     model             : pre-trained Keras LSTM model
     X_eval_scaled     : (M, F) scaled features for the evaluation block
     y_eval            : (M,) targets for the evaluation block
@@ -1030,7 +1084,6 @@ def predict_only_evaluate(
                         preceding the evaluation block (at least LOOKBACK rows)
 
     Returns
-    -------
     predictions : numpy array of predicted log returns
     actuals     : numpy array of actual log returns
     """
@@ -1077,8 +1130,12 @@ def predict_only_evaluate(
 
 
 
-# ── Scaler helper ────────────────────────────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+# Scaler helper 
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function fits a StandardScaler on the provided feature matrix.
 # It returns both the fitted scaler and the scaled data.
 #
@@ -1106,8 +1163,12 @@ def fit_scaler(X: np.ndarray):
 
 
 
-# ── Hyperparameter search helpers ─────────────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+# Hyperparameter search helpers 
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function creates the full search space from PARAM_GRID.
 # It constructs every possible combination of LSTM units, layer count,
 # dropout rate, learning rate, and batch size.
@@ -1152,8 +1213,12 @@ def build_all_combinations(param_grid: dict) -> list:
 
 
 
-# ── Random search ────────────────────────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+# Random search 
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function samples a subset of hyperparameter combinations from PARAM_GRID.
 # Each sampled configuration is trained on the training split.
 # Validation performance is measured using predict_only_evaluate.
@@ -1184,14 +1249,12 @@ def random_search(
     online_evaluate, metric calculation, and best-parameter selection.
 
     Parameters
-    ----------
     train_df     : training split DataFrame
     valid_df     : validation split DataFrame
     feature_cols : list of input feature column names
     target_col   : name of the target column
 
     Returns
-    -------
     best_params  : dict with the best hyperparameter values
     results_df   : DataFrame with all N_RANDOM_DRAWS candidate results,
                    sorted by validation RMSE
@@ -1308,8 +1371,12 @@ def random_search(
 
 
 
-# ── Model evaluation (train split and test split) ─────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+# Model evaluation (train split and test split)
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function evaluates the selected hyperparameter configuration.
 # For the training split, a warm-up section is used to initialise the model.
 # The remaining training rows are evaluated using online predict-then-update.
@@ -1331,14 +1398,12 @@ def fit_and_evaluate(
     split (in-sample) and the held-out test set (out-of-sample).
 
     IN-SAMPLE EVALUATION (training split)
-    ──────────────────────────────────────
     The model is trained on the first (LOOKBACK + EARLY_STOP_WINDOW + 1)
     rows as the warm-up, then the online loop runs over the remainder of
     the training split, updating weights after each observation.
     This gives an in-sample measure of fit.
 
     OUT-OF-SAMPLE EVALUATION (test split)
-    ───────────────────────────────────────
     The scaler is re-fit on train + validation features.  The model is
     retrained from scratch on all sequences from train + validation data.
     The online loop then runs over the test split: predict → train_on_batch.
@@ -1347,7 +1412,6 @@ def fit_and_evaluate(
     returned so that the caller can persist them for later SHAP analysis.
 
     Returns
-    -------
     Tuple of:
       (test_pred, test_actual, test_metrics,
        train_pred, train_actual, train_metrics,
@@ -1357,7 +1421,7 @@ def fit_and_evaluate(
     by save_model_and_scaler() to write artefacts to disk.
     """
 
-    # ── In-sample: online loop over the training split ─────────────────────────
+    # In-sample: online loop over the training split
     warmup = LOOKBACK + EARLY_STOP_WINDOW + 1
 
     train_init = train_df.iloc[:warmup]   # Used to initialise the model
@@ -1389,7 +1453,7 @@ def fit_and_evaluate(
     # Compute in-sample metrics
     train_metrics = calculate_metrics(train_actual, train_pred)
 
-    # ── Out-of-sample: retrain on train + validation, then online over test ────
+    # Out-of-sample: retrain on train + validation, then online over test 
     # Combine train and validation sets for the final model training
     train_valid_df = pd.concat([train_df, valid_df], ignore_index=True)
 
@@ -1432,8 +1496,12 @@ def fit_and_evaluate(
 
 
 
-# ── Output ──────────────────────────────────────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+# Output 
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This function exports the main output files from the after-optimisation run.
 # First, it saves all evaluated random search configurations with validation
 # metrics, sorted by validation RMSE.
@@ -1499,8 +1567,12 @@ def save_outputs(
 
 
 
-# ── Main ───────────────────────────────────────────────(IMPROVED BY CLAUDE Sonnet 4.6)
-# ==============================================================================
+# Main 
+# ---------------------------------------------------------------------------
+# CLAUDE SONNET 4.6
+# Some intermediate print statements were added with help from Claude to monitor runtime progress.
+# ---------------------------------------------------------------------------
+
 # This is the main controller function for the script.
 # It loads data, creates the t+7 target, selects input columns, and splits data.
 # The processed unscaled splits are saved for reproducibility and SHAP analysis.
@@ -1521,9 +1593,6 @@ def lstm_forecast() -> None:
       6. [NEW V2] Save the trained model and fitted scaler
       7. Print results to the terminal
       8. Save predictions and search results to CSV
-
-    V2 additions (steps 3 and 6) are clearly marked below.
-    All other steps are identical to the original script.
     """
 
     # Step 1: Load data, compute log returns, build features
@@ -1534,7 +1603,7 @@ def lstm_forecast() -> None:
     # Step 2: Chronological split (70 / 15 / 15)
     train_df, valid_df, test_df = split_data(df)
 
-    # ── Step 3 [NEW V2]: Save unscaled datasets for reproducible reuse ────────
+    # Step 3: Save unscaled datasets for reproducible reuse 
     # Datasets are saved AFTER feature engineering and BEFORE any scaling.
     # No transformations are applied after the split — zero leakage guarantee.
     # Files are named with the horizon tag so multiple runs coexist safely.
@@ -1572,7 +1641,7 @@ def lstm_forecast() -> None:
         target_col   = target_col,
     )
 
-    # ── Step 6 [NEW V2]: Persist the trained model and scaler ─────────────────
+    # Step 6: Persist the trained model and scaler
     # Both artefacts correspond exactly to the final evaluation run.
     # Saving them here removes any need to retrain when running SHAP later.
     logging.info(
@@ -1629,7 +1698,7 @@ def lstm_forecast() -> None:
     print(f"  Directional Accuracy    : {test_metrics['Directional_Accuracy']:.2f}%")
     print("=" * 60)
 
-    # V2: print a summary of all saved artefacts for this horizon
+    #print a summary of all saved artefacts for this horizon
     tag = horizon_tag()
     print(f"\n  [V2] Artefacts saved for horizon t+{FORECAST_HORIZON}:")
     print(f"    train_{tag}.csv           — unscaled training set")
